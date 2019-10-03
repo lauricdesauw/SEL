@@ -4,20 +4,29 @@
 
 int main (int argc, char** argv)
 {
-	// Getting the pid of the tracee process
+     // Getting the pid of the tracee process
 
-	int err = execl("/bin/pgrep", "tracee",NULL);		
-	pid_t pid;
-	fread(&pid,sizeof(pid_t),1,stdout);	
-	
-	// Attaching to the tracee process
+     if( execl("/bin/pgrep", "tracee",NULL) < 0)
+     {}
+    
+     pid_t pid;
+     if(fread(&pid,sizeof(pid_t),1,stdout) < 0)
+     {}
 
-	ptrace(PTRACE_ATTACH, pid,NULL, NULL); 
-	waitpid(pid, NULL, 0);
+     // Attaching to the tracee process
+     
+     if(ptrace(PTRACE_ATTACH, pid,NULL, NULL) < 0)
+     {}
+     
+     if(waitpid(pid, NULL, 0) < 0)
+     {}
+     
+     // Looking for foo in the tracee binary
+     
+     // Finding the call to foo
 
-	// Looking for foo in the tracee binary
-
-	
-
-
+     // Writing our function
+     
+     // Replacing foo by our function
+     return 0;
 }
