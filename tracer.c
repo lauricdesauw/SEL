@@ -25,19 +25,37 @@ int main (int argc, char** argv)
 	if( execl("/bin/nm", "tracee",NULL) < 0)
 	{}
 
-	char addr[16];
-	char type[1];
-	char* name;
-	int part = 0;
+	int addr;
+	char type;
+	char name[1000];
+	while(1)
+	{
+		fscanf(stdout, "%x %c %s", &addr, &type, name);
+		if(!addr)
+			continue;
 
-		
-	
+		if(type == 'T')
+		{
+			if(name[0] == 'f')
+
+			{
+				if(name[1] == 'o')
+
+				{
+					if(name[2] == 'o')
+
+					{
+						if(name[3] == '\0')
+						{
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
 
 
-	// Finding the call to foo
 
-	// Writing our function
-
-	// Replacing foo by our function
 	return 0;
 }
