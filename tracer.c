@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define ERROR(msg) { fprintf(msg, stderr); goto Exit; }
+
 int main (int argc, char** argv)
 {
 	// Getting the pid of the tracee process
@@ -9,11 +11,11 @@ int main (int argc, char** argv)
 	printf("Finf the pid of the tracee programm\n");
 
 	if( execl("/bin/pgrep", "tracee",NULL) < 0)
-	{}
+	     ERROR("Unable to pgrep tracee\n")
 
 	pid_t pid;
 	if(fread(&pid,sizeof(pid_t),1,stdout) < 0)
-	{}
+	     ERROR("Unable to read PID in stdout\n")
 
 	printf("Pid find it's : %d\n", pid);
 
@@ -22,10 +24,10 @@ int main (int argc, char** argv)
 	printf("Ask for attaching\n");
 	
 	if(ptrace(PTRACE_ATTACH, pid,NULL, NULL) < 0)
-	{}
+	     ERROR("Could not trace PID\n")
 
 	if(waitpid(pid, NULL, 0) < 0)
-	{}
+	     ERROR("Error while waiting for PID\n")
 	
 	printf("Attached\n");
 
@@ -33,7 +35,7 @@ int main (int argc, char** argv)
 	
 	printf("Looking for foo's addr\n");
 	if( execl("/bin/nm", "tracee",NULL) < 0)
-	{}
+	     ERROR("Could not exec nm on tracee\n")
 
 	int addr;
 	char type;
@@ -68,6 +70,6 @@ int main (int argc, char** argv)
 	printf("foo addr is : %d\n", addr);
 
 
-
+Exit:
 	return 0;
 }
