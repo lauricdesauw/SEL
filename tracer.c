@@ -5,6 +5,8 @@
 int main (int argc, char** argv)
 {
 	// Getting the pid of the tracee process
+	
+	printf("Finf the pid of the tracee programm\n");
 
 	if( execl("/bin/pgrep", "tracee",NULL) < 0)
 	{}
@@ -13,15 +15,23 @@ int main (int argc, char** argv)
 	if(fread(&pid,sizeof(pid_t),1,stdout) < 0)
 	{}
 
+	printf("Pid find it's : %d\n", pid);
+
 	// Attaching to the tracee process
 
+	printf("Ask for attaching\n");
+	
 	if(ptrace(PTRACE_ATTACH, pid,NULL, NULL) < 0)
 	{}
 
 	if(waitpid(pid, NULL, 0) < 0)
 	{}
+	
+	printf("Attached\n");
 
 	// Looking for foo in the tracee binary
+	
+	printf("Looking for foo's addr\n");
 	if( execl("/bin/nm", "tracee",NULL) < 0)
 	{}
 
@@ -54,6 +64,8 @@ int main (int argc, char** argv)
 			}
 		}
 	}
+
+	printf("foo addr is : %d\n", addr);
 
 
 
