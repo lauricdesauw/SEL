@@ -72,7 +72,10 @@ int main (int argc, char** argv)
 	{
 		ERROR_ERRNO("Could not open mem %s\n");
 	}
-
+	char* memory = malloc(sizeof(char)*4096);
+	fread(&memory ,4096, 1, mem );
+	printf("%s\n", memory);
+	
 	char c = fgetc(mem);
 	if(c==EOF)
 		ERROR_ERRNO("EOF %s\n");

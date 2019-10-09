@@ -5,12 +5,13 @@ void volatile foo()
 {
 	static int i; 
 	++i;
-	printf("foo executed\n");
+	printf("foo executed %d\n", i);
 }
 
 
 int main(int argc, char** argv)
 { 
+	
 	while(1)
 	{
 		printf("I'm totally foo\n");
