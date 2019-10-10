@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-void volatile foo()
+void foo()
 
 {
 	static int i; 

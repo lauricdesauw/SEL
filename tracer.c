@@ -72,22 +72,16 @@ int main (int argc, char** argv)
 	{
 		ERROR_ERRNO("Could not open mem %s\n");
 	}
-	char* memory = malloc(sizeof(char)*4096);
-	fread(&memory ,4096, 1, mem );
-	printf("%s\n", memory);
+	int trap = 0xcc;
+	fseek(mem,addr,1);
+	fwrite(&trap, 1, 1, mem);
+	printf("foo is trapped\n");
+	fclose(mem);
+	ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
 	
-	char c = fgetc(mem);
-	if(c==EOF)
-		ERROR_ERRNO("EOF %s\n");
-
-	while(c != EOF)
-	{
-		printf("%c", c);
-		c = fgetc(mem);
-	}
-
 	return 0;
 
 Exit:
 	return 1;
 }
+
