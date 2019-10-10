@@ -77,6 +77,7 @@ int main (int argc, char** argv)
 	fwrite(&trap, 1, 1, mem);
 	printf("foo is trapped\n");
 	fclose(mem);
+	ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 	ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
 	
 	return 0;
