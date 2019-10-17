@@ -119,6 +119,7 @@ int main (int argc, char** argv)
      char call_trap[] = {0xff, 0xd0, 0xcc};
      fwrite(call_trap, 1, 3, mem);
 
+
      ptrace(PTRACE_SETREGS, pid, NULL, &regs);
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
@@ -135,8 +136,6 @@ int main (int argc, char** argv)
      printf("Register are restored\n");
 
 
-     mem = fopen(path, "r+");
-
      if(mem == NULL)
      {
 	  ERROR_ERRNO("Could not open mem %s\n");
@@ -150,9 +149,12 @@ int main (int argc, char** argv)
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
      ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
 
+
      return 0;
 
 Exit:
      return 1;
 }
+
+
 
