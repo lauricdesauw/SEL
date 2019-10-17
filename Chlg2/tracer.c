@@ -117,9 +117,17 @@ int main (int argc, char** argv)
      regs.rdi = 5;
 
      char call_trap[] = {0xff, 0xd0, 0xcc};
+
+     mem = fopen(path, "r+");
+
+     if(mem == NULL)
+     {
+	  ERROR_ERRNO("Could not open mem %s\n");
+     }
+     fseek(mem, addr_goo + 1, SEEK_SET);
      fwrite(call_trap, 1, 3, mem);
-
-
+     fclose(mem);
+     
      ptrace(PTRACE_SETREGS, pid, NULL, &regs);
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
@@ -135,7 +143,7 @@ int main (int argc, char** argv)
      ptrace(PTRACE_SETREGS, pid,NULL , &regs);
      printf("Register are restored\n");
 
-
+     mem = fopen(path, "r+");
      if(mem == NULL)
      {
 	  ERROR_ERRNO("Could not open mem %s\n");
