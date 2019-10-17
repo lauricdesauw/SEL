@@ -1,6 +1,7 @@
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/user.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -8,6 +9,8 @@
 
 #define ERROR_ERRNO(msg) { fprintf(stderr, msg, strerror(errno)); goto Exit; }
 #define ERROR(msg) { fprintf(stderr, msg); goto Exit; }
+
+typedef struct user_regs_struct user_regs_struct;
 
 int main (int argc, char** argv)
 {
@@ -92,10 +95,11 @@ int main (int argc, char** argv)
 
 	// getting the value in the register 
 
-	char register[1024];	
-	ptrace(PTRACE_GETREGS, pid, NULL,register);
+	user_regs_struct regs;	
+	ptrace(PTRACE_GETREGS, pid, NULL, &regs);
 
-
+	unsigned long long rax = regs.rax;
+	regs.rax = addr_foo;
 	// Change the goo code to call foo with parameter
 
 	ptrace(PTRACE_CONT, pid, NULL, NULL) ;
