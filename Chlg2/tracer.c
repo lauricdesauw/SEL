@@ -91,6 +91,7 @@ int main (int argc, char** argv)
 	ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
 	// getting the value in the register 
+
 	char register[1024];	
 	ptrace(PTRACE_GETREGS, pid, NULL,register);
 

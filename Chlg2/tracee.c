@@ -4,9 +4,9 @@
 int foo(int i)
 
 {
-	printf("foo is doing some things\n");	
+	printf("foo is doing some things : \n");	
 	sleep(5);
-	return 0;
+	return i;
 }
 
 
