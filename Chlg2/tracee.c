@@ -20,6 +20,7 @@ int main(int argc, char** argv)
 { 
 	while(1)
 	{
+	  goo();
 	}
 	return 0;
 }

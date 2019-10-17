@@ -1,6 +1,7 @@
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/user.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -8,6 +9,8 @@
 
 #define ERROR_ERRNO(msg) { fprintf(stderr, msg, strerror(errno)); goto Exit; }
 #define ERROR(msg) { fprintf(stderr, msg); goto Exit; }
+
+typedef struct user_regs_struct user_regs_struct;
 
 int main (int argc, char** argv)
 {
@@ -99,21 +102,30 @@ int main (int argc, char** argv)
      // getting the value in the register 
 
      user_regs_struct regs;	
-     ptrace(PTRACE_GETREGS, pid, NULL,&regs);
 
+     ptrace(PTRACE_GETREGS, pid, NULL, &regs);
 
      // Change the goo code to call foo with parameter
+     
+     unsigned long long rax = regs.rax, rdi = regs.rdi;
+     regs.rax = addr_foo;
+     regs.rdi = 5;
 
+     char call_trap[] = {0xff, 0xd0, 0xcc};
+     fwrite(call_trap, 1, 3, mem);
+
+
+     ptrace(PTRACE_SETREGS, pid, NULL, &regs);
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
-
+     
      // Restore the goo code and register value
+     regs.rax = rax;
+     regs.rdi = rdi;
      regs.rip = addr_goo;
      ptrace(PTRACE_SETREGS, pid,NULL , &regs);
      printf("Register are restored\n");
 
-
-     mem = fopen(path, "r+");
 
      if(mem == NULL)
      {
@@ -128,9 +140,12 @@ int main (int argc, char** argv)
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
      ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
 
+
      return 0;
 
 Exit:
      return 1;
 }
+
+
 
