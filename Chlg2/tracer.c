@@ -101,6 +101,11 @@ int main (int argc, char** argv)
 
      // getting the value in the register 
 
+     if(waitpid(pid, NULL, 0) < 0)
+     {
+	  ERROR("Error while waiting for PID\n");
+     }
+     
      user_regs_struct regs;	
 
      ptrace(PTRACE_GETREGS, pid, NULL, &regs);
@@ -117,6 +122,10 @@ int main (int argc, char** argv)
      ptrace(PTRACE_SETREGS, pid, NULL, &regs);
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
+     if(waitpid(pid, NULL, 0) < 0)
+     {
+	  ERROR("Error while waiting for PID\n");
+     }
      
      // Restore the goo code and register value
      regs.rax = rax;
