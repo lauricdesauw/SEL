@@ -88,11 +88,11 @@ int main (int argc, char** argv)
      int trap = 0xcc;
      unsigned long long int goo_code;
      // Save goo code 
-     fseek(mem,addr_goo,1);
+     fseek(mem,addr_goo, SEEK_SET);
      fread(&goo_code, 4, 1, mem); 
      
      // Trap goo 
-     fseek(mem,addr_goo,1);
+     fseek(mem,addr_goo, SEEK_SET);
      fwrite(&trap, 1, 1, mem);
      printf("goo is trapped\n");
      fclose(mem);
