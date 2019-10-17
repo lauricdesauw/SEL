@@ -86,6 +86,12 @@ int main (int argc, char** argv)
 		ERROR_ERRNO("Could not open mem %s\n");
 	}
 	int trap = 0xcc;
+    unsigned long long int goo_code;
+    // Save goo code 
+	fseek(mem,addr_goo,1);
+    fread(&goo_code, 4, 1, mem); 
+     
+    // Trap goo 
 	fseek(mem,addr_goo,1);
 	fwrite(&trap, 1, 1, mem);
 	printf("goo is trapped\n");
@@ -96,6 +102,7 @@ int main (int argc, char** argv)
 	// getting the value in the register 
 
 	user_regs_struct regs;	
+
 	ptrace(PTRACE_GETREGS, pid, NULL, &regs);
 
 	unsigned long long rax = regs.rax;
@@ -106,7 +113,21 @@ int main (int argc, char** argv)
 
 
 	// Restore the goo code and register value
+    regs.rip = addr_goo;
+    ptrace(PTRACE_SETREGS, pid,NULL , &regs);
+	printf("Register are restored\n");
 
+
+    mem = fopen(path, "r+");
+
+	if(mem == NULL)
+	{
+		ERROR_ERRNO("Could not open mem %s\n");
+	}
+	fseek(mem,addr_goo,1);
+	fwrite(&goo_code, 4, 1, mem);
+	printf("goo is restored\n");
+	fclose(mem);
 
 
 	ptrace(PTRACE_CONT, pid, NULL, NULL) ;
