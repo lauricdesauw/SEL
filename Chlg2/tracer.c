@@ -12,14 +12,15 @@
 
 typedef struct user_regs_struct user_regs_struct;
 
-int main (int argc, char** argv)
+pid_t trace(const char* tracee)
 {
      // Getting the pid of the tracee process
 
      printf("Looking for the pid of the tracee program\n");
 
      pid_t pid;
-     FILE* pgrep = popen("pgrep tracee", "r");
+     
+     FILE* pgrep = popen("pgrep", "r");
 
      if(fscanf(pgrep, "%d", &pid) == EOF)
      {
@@ -46,7 +47,11 @@ int main (int argc, char** argv)
      }
 
      printf("Attached\n");
+}
 
+int main (int argc, char** argv)
+{
+     
      // Looking for foo in the tracee binary
 
      printf("Looking for foo's addr\n");
