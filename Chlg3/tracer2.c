@@ -160,6 +160,26 @@ Exit:
      return -1;
 }
 
+int set_and_save_regs(const user_regs_struct* curr_reg, unsigned long long *regs_to_change[],
+	      unsigned long long values[], const int size)
+{
+  unsigned long long tmp;
+  for(int i = 0; i < size; i++)
+    {
+      tmp = *regs_to_change[i];
+      *regs_to_change[i] = values[i];
+      values[i] = tmp;
+    }
+  if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
+     {
+	  ERROR_ERRNO("Could not modify registers ! %s\n");
+     }
+  return 0;
+
+ Exit :
+  return -1; 
+}
+
 int main (int argc, char** argv)
 {
      // Getting the pid of the tracee process
@@ -168,27 +188,28 @@ int main (int argc, char** argv)
 
      if(pid < 0)
 	  goto Exit;
-     
-     // Looking for goo and bar in the tracee binary
 
-     const char* fs[2] = {"goo", "bar"};
-     int addr[2];
+     // Looking for the libc and foo addr
+
+     printf("Looking for libs's functions' addr\n");
      
-     if(get_addr("tracee", 7, fs, 2, addr) < 0)
+     const char* fs[3] = {"posix_memalign","mprotect", "foo"};
+     int addr[3];
+     if(get_addr("tracee", 7, fs, 3, addr) < 0)
+       goto Exit;
+     
+     unsigned long long add_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
+     
+     // Write the code in the tracee
+     
+     char foo_code[7];
+     char call_trap[] = {0xcc, 0xff, 0xd0, 0xcc , 0xff, 0xd0, 0xcc};
+
+     if(write_to_mem(pid, call_trap, 4, addr_foo, foo_code) < 0)
 	  goto Exit;
-
-     unsigned long long addr_goo = addr[0], addr_bar = addr[1];
      
-     printf("Looking for bar's addr\n");
-
-     char goo_code[4];
-     char call_trap[] = {0xcc, 0xff, 0xd0, 0xcc};
-
-     if(write_to_mem(pid, call_trap, 4, addr_goo, goo_code) < 0)
-	  goto Exit;
-
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
-
+     
      // getting the values in the registers
 
      if(waitpid(pid, NULL, 0) < 0)
@@ -261,6 +282,7 @@ int main (int argc, char** argv)
 Exit:
      return 1;
 }
+
 
 
 
