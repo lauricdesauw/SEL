@@ -160,24 +160,30 @@ Exit:
      return -1;
 }
 
-int set_and_save_regs(const user_regs_struct* curr_reg, unsigned long long *regs_to_change[],
+int set_and_save_regs(const pid_t pid, const user_regs_struct* curr_reg, unsigned long long *regs_to_change[],
 	      unsigned long long values[], const int size)
 {
-  unsigned long long tmp;
-  for(int i = 0; i < size; i++)
-    {
-      tmp = *regs_to_change[i];
-      *regs_to_change[i] = values[i];
-      values[i] = tmp;
-    }
-  if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
+     printf("Saving registers...\n");
+     
+     unsigned long long tmp;
+     for(int i = 0; i < size; i++)
+     {
+	  tmp = *regs_to_change[i];
+	  *regs_to_change[i] = values[i];
+	  values[i] = tmp;
+     }
+
+     printf("Setting registers...\n");
+     
+     if(ptrace(PTRACE_SETREGS, pid, NULL, curr_reg) < 0)
      {
 	  ERROR_ERRNO("Could not modify registers ! %s\n");
      }
-  return 0;
+  
+     return 0;
 
- Exit :
-  return -1; 
+Exit:
+     return -1; 
 }
 
 int main (int argc, char** argv)
