@@ -53,6 +53,8 @@ pid_t trace(const char* tracee, const int n)
 
      printf("Attached\n");
 
+     free(pgrep_s);
+     
      return pid;
      
 Exit:
@@ -160,8 +162,9 @@ Exit:
      return -1;
 }
 
-int set_and_save_regs(const pid_t pid, const user_regs_struct* curr_reg, unsigned long long *regs_to_change[],
-	      unsigned long long values[], const int size)
+int set_and_save_regs(const pid_t pid, const user_regs_struct* curr_reg,
+		      unsigned long long *regs_to_change[],
+		      unsigned long long values[], const int size)
 {
      printf("Saving registers...\n");
      
@@ -232,11 +235,8 @@ int main (int argc, char** argv)
 
      // Change the goo code to call bar with parameter
 
-     printf("Saving registers...\n");
-     unsigned long long rax = regs.rax, rdi = regs.rdi, rsp = regs.rsp;
-     regs.rax = addr_bar;
-     regs.rsp -= 1;
-     regs.rdi = regs.rsp + 1;
+     unsigned long long* regs_addr[3] = {&regs.rax, &regs.rdi, &regs.rsp};
+     unsigned long long values[3]; 
 
      printf("Writing value...");
      char value = 7;
@@ -244,16 +244,9 @@ int main (int argc, char** argv)
      if(write_to_mem(pid, &value, 1, regs.rdi, NULL) < 0)
 	  goto Exit;
 
-     /*fseek(mem, regs.rdi, SEEK_SET);
-     fwrite(&value, 1, 1, mem);
-     */
-
-     printf("Setting registers...\n");
-     if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
-     {
-	  ERROR_ERRNO("Could not modify registers ! %s\n");
-     }
-     
+     if(set_and_save_regs(pid, &regs, regs_addr, values, 3) < 0)
+	  goto Exit;
+          
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
      if(waitpid(pid, NULL, 0) < 0)
@@ -263,14 +256,10 @@ int main (int argc, char** argv)
      
      // Restore the goo code and register value
      printf("Restoring registers...\n");
-     regs.rax = rax;
-     regs.rdi = rdi;
-     regs.rsp = rsp;
-     regs.rip = addr_goo;
-     if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
-     {
-	  ERROR_ERRNO("Could not restore registers ! %s\n");
-     }
+
+     if(set_and_save_regs(pid, &regs, regs_addr, values, 3) < 0)
+	  goto Exit;
+
      printf("Registers are restored\n");
 
      printf("Restoring code...\n");
