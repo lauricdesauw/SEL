@@ -196,7 +196,7 @@ int main (int argc, char** argv)
 {
      // Getting the pid of the tracee process
      pid_t pid = trace("tracee", 7);
-     size_t code_size = 100000;
+     size_t code_size = 1000;
 
      if(pid < 0)
 	  goto Exit;
@@ -229,29 +229,24 @@ int main (int argc, char** argv)
 	  ERROR("Error while waiting for PID\n");
      }
      
-     user_regs_struct regs;	
+     user_regs_struct regs, rem_regs;	
 
      if(ptrace(PTRACE_GETREGS, pid, NULL, &regs) < 0)
      {
 	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
 
+     rem_regs = regs;
+
      // Change the goo code to call bar with parameter
 
      unsigned long long* regs_addr[5] = {&regs.rax, &regs.rdi, &regs.rsi, &regs.rdx, &regs.rsp};
-     unsigned long long values[5] = {addr_memalign, regs.rsp - sizeof(void*),
-				     getpagesize(), code_size, regs.rsp - sizeof(void*) - sizeof(void**)}; 
-
+     unsigned long long values[5] = {addr_memalign, regs.rsp, getpagesize(), code_size,
+				     regs.rsp - sizeof(void*)};
+     
      printf("Writing call to posix_memalign...\n");
-
-     unsigned int tmp_addr = regs.rsp;
-     char value[sizeof(int) + 1] = {0};
-     sprintf(value, "%u", tmp_addr);
      
      if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
-	  goto Exit;
-     
-     if(write_to_mem(pid, value, sizeof(int), regs.rdi, NULL) < 0)
 	  goto Exit;
 
      printf("Waiting for tracee to call posix_memalign...\n");
@@ -263,7 +258,25 @@ int main (int argc, char** argv)
 	  ERROR("Error while waiting for PID\n");
      }
 
-     unsigned long long tmp_values[4] = {addr_mprotect, tmp_addr, code_size,
+     user_regs_struct tmp_regs;
+
+     if(ptrace(PTRACE_GETREGS, pid, NULL, &tmp_regs) < 0)
+     {
+	  ERROR_ERRNO("Error while getting registers ! %s\n")
+     }
+
+     if(tmp_regs.rax < 0)
+     {
+	  printf("Error while calling posix_memalign !\n");
+	  
+	  if(tmp_regs.rax == EINVAL)
+	       printf("Invalid alignment !\n");
+	  else
+	       printf("Not enough memory !\n");
+     }
+     
+     unsigned long long tmp_values[4] = {addr_mprotect, (unsigned long long)
+					 regs.rdi, code_size,
 					 PROT_EXEC | PROT_READ};
 
      printf("Writing call to mprotect...\n");
@@ -280,10 +293,25 @@ int main (int argc, char** argv)
 	  ERROR("Error while waiting for PID\n");
      }
      
+     if(ptrace(PTRACE_GETREGS, pid, NULL, &tmp_regs) < 0)
+     {
+	  ERROR_ERRNO("Error while getting registers ! %s\n")
+     }
+
+     if(tmp_regs.rax < 0)
+     {
+	  ERROR_ERRNO("Error while calling mprotect ! %s\n")
+     }
+     
      printf("Restoring registers...\n");
 
-     if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
-	  goto Exit;
+     /* if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
+	goto Exit; */
+
+     if(ptrace(PTRACE_SETREGS, pid, NULL, &rem_regs) < 0)
+     {
+	  ERROR_ERRNO("Could not restore registers ! %s\n")
+     }
 
      printf("Registers are restored\n");
 
