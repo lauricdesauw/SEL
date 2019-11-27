@@ -190,6 +190,8 @@ Exit:
      return -1; 
 }
 
+#include "getlib.c"
+
 int main (int argc, char** argv)
 {
      // Getting the pid of the tracee process
