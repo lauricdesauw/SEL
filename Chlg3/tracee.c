@@ -5,7 +5,7 @@ int foo(int i)
 
 {
      printf("foo is doing some things : %d\n", i);	
-     sleep(5);
+     sleep(1);
      return i;
 }
 
@@ -27,7 +27,7 @@ int main(int argc, char** argv)
 { 
 	while(1)
 	{
-	  goo();
+	     foo(3);
 	}
 	return 0;
 }

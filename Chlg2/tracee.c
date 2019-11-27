@@ -27,7 +27,7 @@ int main(int argc, char** argv)
 { 
 	while(1)
 	{
-	  goo();
+	     foo(3);
 	}
 	return 0;
 }

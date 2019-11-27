@@ -40,13 +40,17 @@ pid_t trace(const char* tracee)
 	  ERROR_ERRNO("Could not trace PID ! %s\n");
      }
 
-
      if(waitpid(pid, NULL, 0) < 0)
      {
 	  ERROR("Error while waiting for PID\n");
      }
 
      printf("Attached\n");
+
+     return pid;
+
+Exit:
+     return -1;
 }
 
 int main (int argc, char** argv)

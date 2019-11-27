@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -192,8 +193,8 @@ Exit:
 int main (int argc, char** argv)
 {
      // Getting the pid of the tracee process
-
      pid_t pid = trace("tracee", 7);
+     size_t code_size = 100000;
 
      if(pid < 0)
 	  goto Exit;
@@ -207,14 +208,14 @@ int main (int argc, char** argv)
      if(get_addr("tracee", 7, fs, 3, addr) < 0)
        goto Exit;
      
-     unsigned long long add_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
+     unsigned long long addr_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
      
      // Write the code in the tracee
      
      char foo_code[7];
-     char call_trap[] = {0xcc, 0xff, 0xd0, 0xcc , 0xff, 0xd0, 0xcc};
+     char call_trap[7] = {0xcc, 0xff, 0xd0, 0xcc , 0xff, 0xd0, 0xcc};
 
-     if(write_to_mem(pid, call_trap, 4, addr_foo, foo_code) < 0)
+     if(write_to_mem(pid, call_trap, 7, addr_foo, foo_code) < 0)
 	  goto Exit;
      
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
@@ -235,18 +236,41 @@ int main (int argc, char** argv)
 
      // Change the goo code to call bar with parameter
 
-     unsigned long long* regs_addr[3] = {&regs.rax, &regs.rdi, &regs.rsp};
-     unsigned long long values[3]; 
+     unsigned long long* regs_addr[5] = {&regs.rax, &regs.rdi, &regs.rsi, &regs.rdx, &regs.rsp};
+     unsigned long long values[5] = {addr_memalign, regs.rsp - sizeof(void*),
+				     getpagesize(), code_size, regs.rsp - sizeof(void*) - sizeof(void**)}; 
 
-     printf("Writing value...");
-     char value = 7;
+     printf("Writing call to posix_memalign...\n");
 
-     if(write_to_mem(pid, &value, 1, regs.rdi, NULL) < 0)
+     unsigned int tmp_addr = regs.rsp;
+     char value[sizeof(int) + 1] = {0};
+     sprintf(value, "%u", tmp_addr);
+     
+     if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
+	  goto Exit;
+     
+     if(write_to_mem(pid, value, sizeof(int), regs.rdi, NULL) < 0)
 	  goto Exit;
 
-     if(set_and_save_regs(pid, &regs, regs_addr, values, 3) < 0)
+     printf("Waiting for tracee to call posix_memalign...\n");
+     
+     ptrace(PTRACE_CONT, pid, NULL, NULL) ;
+
+     if(waitpid(pid, NULL, 0) < 0)
+     {
+	  ERROR("Error while waiting for PID\n");
+     }
+
+     unsigned long long tmp_values[4] = {addr_mprotect, tmp_addr, code_size,
+					 PROT_EXEC | PROT_READ};
+
+     printf("Writing call to mprotect...\n");
+
+     if(set_and_save_regs(pid, &regs, regs_addr, tmp_values, 4) < 0)
 	  goto Exit;
-          
+     
+     printf("Waiting for tracee to call mprotect...\n");
+     
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
      if(waitpid(pid, NULL, 0) < 0)
@@ -254,20 +278,19 @@ int main (int argc, char** argv)
 	  ERROR("Error while waiting for PID\n");
      }
      
-     // Restore the goo code and register value
      printf("Restoring registers...\n");
 
-     if(set_and_save_regs(pid, &regs, regs_addr, values, 3) < 0)
+     if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
 	  goto Exit;
 
      printf("Registers are restored\n");
 
      printf("Restoring code...\n");
      
-     if(write_to_mem(pid, goo_code, 4, addr_goo, NULL) < 0)
+     if(write_to_mem(pid, foo_code, 7, addr_foo, NULL) < 0)
 	  goto Exit;
      
-     printf("goo is restored\n");
+     printf("foo is restored\n");
 
      ptrace(PTRACE_CONT, pid, NULL, NULL);
      ptrace(PTRACE_DETACH, pid, NULL, NULL);
