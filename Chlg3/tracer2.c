@@ -1,3 +1,4 @@
+
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -190,7 +191,27 @@ Exit:
      return -1; 
 }
 
+
 #include "getlib.c"
+
+  void print_maps(pid_t pid)
+{
+     char path[25];
+     sprintf(path, "/proc/%d/maps", pid);
+
+     FILE* f = fopen(path, "r");
+     char c;
+
+     do
+     {
+	  c = fgetc(f);
+
+	  if(c == EOF)
+	       break;
+
+	  printf("%c", c);
+     } while(1);
+}
 
 int main (int argc, char** argv)
 {
@@ -201,6 +222,8 @@ int main (int argc, char** argv)
      if(pid < 0)
 	  goto Exit;
 
+     print_maps(pid);
+     
      // Looking for the libc and foo addr
 
      printf("Looking for libs's functions' addr\n");
@@ -211,6 +234,7 @@ int main (int argc, char** argv)
        goto Exit;
      
      unsigned long long addr_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
+     printf("%llx %llx\n", addr_memalign, addr_mprotect);
      
      // Write the code in the tracee
      
@@ -241,8 +265,8 @@ int main (int argc, char** argv)
      // Change the goo code to call bar with parameter
 
      unsigned long long* regs_addr[5] = {&regs.rax, &regs.rdi, &regs.rsi, &regs.rdx, &regs.rsp};
-     unsigned long long values[5] = {addr_memalign, regs.rsp, getpagesize(), code_size,
-				     regs.rsp - sizeof(void*)};
+     unsigned long long values[5] = {addr_memalign, regs.rsp,
+				     getpagesize(), code_size, regs.rsp - sizeof(void*)};
      
      printf("Writing call to posix_memalign...\n");
      
@@ -265,6 +289,8 @@ int main (int argc, char** argv)
 	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
 
+     printf("%llx \n", tmp_regs.rax);
+     
      if(tmp_regs.rax < 0)
      {
 	  printf("Error while calling posix_memalign !\n");
@@ -281,7 +307,7 @@ int main (int argc, char** argv)
 
      printf("Writing call to mprotect...\n");
 
-     if(set_and_save_regs(pid, &regs, regs_addr, tmp_values, 4) < 0)
+     if(set_and_save_regs(pid, &tmp_regs, regs_addr, tmp_values, 4) < 0)
 	  goto Exit;
      
      printf("Waiting for tracee to call mprotect...\n");
@@ -298,6 +324,8 @@ int main (int argc, char** argv)
 	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
 
+     printf("%llx \n", tmp_regs.rax);
+     
      if(tmp_regs.rax < 0)
      {
 	  ERROR_ERRNO("Error while calling mprotect ! %s\n")
@@ -322,6 +350,8 @@ int main (int argc, char** argv)
      
      printf("foo is restored\n");
 
+     print_maps(pid);
+     
      ptrace(PTRACE_CONT, pid, NULL, NULL);
      ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
