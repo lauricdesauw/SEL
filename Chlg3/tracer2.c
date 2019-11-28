@@ -1,4 +1,3 @@
-
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -65,9 +64,10 @@ Exit:
      return -1;
 }
 
-int get_addr(const char* path, const int p, const char* fs[], const int n, int addr[])
+int get_addr(const char* path, const int p, const char* fs[],
+	     const int n, unsigned long long addr[])
 {
-     char* nm_s = malloc((n+3) * sizeof(char));
+     char* nm_s = malloc((p+3) * sizeof(char));
 
      strcpy(nm_s, "nm ");
      strncat(nm_s, path, p);
@@ -191,10 +191,62 @@ Exit:
      return -1; 
 }
 
+int get_path_libc(const pid_t pid, char name[], unsigned long long* offset)
+{
+     char cat_s[35];
+     sprintf(cat_s, "cat /proc/%d/maps | grep libc", pid);
 
-#include "getlib.c"
+     FILE* cat = popen(cat_s, "r");
+     unsigned long long o[5];
+     char c[2], type[5];
 
-  void print_maps(pid_t pid)
+     while(1)
+     {
+	  if(fscanf(cat, "%llx %c %llx %s %llx %llx %c %llx %llx %s",
+		    offset, c, o, type, o+1, o+2, c+1, o+3, o+4, name) == EOF)
+	  {
+	       ERROR_ERRNO("Could not read cat | grep ! %s")
+	  };
+
+	  printf("%s\n", name);
+	  
+	  if(!strcmp(type, "r-xp"))
+	       break;
+     }
+
+     return 0;
+     
+Exit:
+     return -1;
+}
+
+int get_libc_addr(const pid_t pid, const char* fs[], const int n, unsigned long long addr[])
+{
+     char path[1000];
+     unsigned long long offset;
+
+     if(get_path_libc(pid, path, &offset) < 0)
+     {
+	  ERROR("Could not find libc path !\n")
+     }
+
+     printf("%s %lu\n", path, strlen(path));
+     
+     if(get_addr(path, strlen(path), fs, n, addr) < 0)
+     {
+	  ERROR("Could not find functions in libc !\n")
+     }
+
+     for(int i = 0; i < n; ++i)
+	  addr[i] += offset;
+
+     return 0;
+     
+Exit:
+     return -1;
+}
+
+void print_maps(pid_t pid)
 {
      char path[25];
      sprintf(path, "/proc/%d/maps", pid);
@@ -228,10 +280,14 @@ int main (int argc, char** argv)
 
      printf("Looking for libs's functions' addr\n");
      
-     const char* fs[3] = {"posix_memalign","mprotect", "foo"};
-     int addr[3];
-     if(get_addr("tracee", 7, fs, 3, addr) < 0)
-       goto Exit;
+     const char* fs[3] = {"foo", "posix_memalign","mprotect"};
+     unsigned long long addr[3];
+     
+     if(get_addr("tracee", 7, fs, 1, addr) < 0)
+	  goto Exit;
+
+     if(get_libc_addr(pid, fs + 1, 2, addr) < 0)
+	  goto Exit;
      
      unsigned long long addr_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
      printf("%llx %llx\n", addr_memalign, addr_mprotect);

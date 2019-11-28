@@ -25,9 +25,9 @@ int get_path_libc(const pid_t pid, char** name)
   strncat(cat_s, path, p);
      
   FILE* cat = popen(cat_s, "r");
-  char type;
+  char type[5];
   char name_tmp[1000];
-  int addr_tmp = 0;
+  int addr_tmp = 0, garbage;
 
   if(cat == NULL)
     {
@@ -36,14 +36,17 @@ int get_path_libc(const pid_t pid, char** name)
      
   while(1) 
     {
-      while(fgetc(cat) != '0') ;
-      if(fscanf(cat,"%x %c %s", &addr_tmp, &type, name_tmp) == EOF)
+	 printf("1\n");
+      while(fgetc(cat)) ;
+      if(fscanf(cat,"%x %x %s %x %x %x %x %s", &addr_tmp, &garbage, type,
+		&garbage, &garbage, &garbage, &garbage,
+		name_tmp) == EOF)
 	{
 	  ERROR_ERRNO("Error while reading nm output ! %s\n")
 	    }
 
 
-      if(!strcmp(&type, "r-xp") & !strncmp(name_tmp, "/usr/lib/libc", 13) )
+      if(!strcmp(type, "r-xp") && !strcmp(name_tmp, "/lib/x86_64-linux-gnu/libc-2.27.so"))
 	{
 	  name[0] = name_tmp;
 	  break;
@@ -67,7 +70,7 @@ int get_offset(const pid_t pid, const char* fs[], const int n, int addr[])
     {
       ERROR("Error finding the name of the libc");
     }
-  
+
   if(get_addr(path, 21, fs, n, addr) < 0 )
     {
       ERROR("Error finding the functions in the libc");
