@@ -28,6 +28,7 @@ int main(int argc, char** argv)
 	while(1)
 	{
 	     foo(3);
+	     goo();
 	}
 	return 0;
 }

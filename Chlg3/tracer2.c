@@ -26,6 +26,8 @@ pid_t trace(const char* tracee, const int n)
      
      printf("Looking for the pid of the tracee program\n");
 
+     // Usign pgrep to get the pid of the program to trace
+     
      pid_t pid;
      FILE* pgrep = popen(pgrep_s, "r");
 
@@ -71,6 +73,8 @@ int get_addr(const char* path, const int p, const char* fs[],
 
      strcpy(nm_s, "nm ");
      strncat(nm_s, path, p);
+
+     // Using nm to get the adresses of the functions we're interested in
      
      FILE* nm = popen(nm_s, "r");
      char type;
@@ -84,12 +88,15 @@ int get_addr(const char* path, const int p, const char* fs[],
      
      while(1) 
      {
+	  // Reading nm output
+	  
 	  while(fgetc(nm) != '0') ;
 	  if(fscanf(nm,"%x %c %s", &addr_tmp, &type, name) == EOF)
 	  {
 	       ERROR_ERRNO("Error while reading nm output ! %s\n")
 	  }
 
+	  // Check if the name is one of the functions we're looking for
 	  for(i = 0; i < n; ++i)
 	  {
 	       if(!strcmp(name, fs[i]))
@@ -99,7 +106,8 @@ int get_addr(const char* path, const int p, const char* fs[],
 		    break;
 	       }
 	  }
-	  
+
+	  // Once they've all been found, we can leave
 	  if(found == n)
 	       break;
      }
@@ -115,6 +123,8 @@ Exit:
 int write_to_mem(const pid_t pid, const char* to_write, const int n,
 		  const unsigned long long addr, char* save_buffer)
 {
+     // Open the memory of the tracee
+     
      char path[25] = {0};
      sprintf(path, "/proc/%d/mem", pid); 
 
@@ -127,11 +137,15 @@ int write_to_mem(const pid_t pid, const char* to_write, const int n,
 
      printf("Seeking...\n");
 
+     // Find the right spot...
+     
      if(fseek(mem, addr, SEEK_SET) < 0)
      {
 	  ERROR_ERRNO("Could not fseek address ! %s\n");
      }
 
+     // ...if we care about it, remember it...
+     
      if(save_buffer != NULL)
      {
 	  printf("Saving...\n");
@@ -146,6 +160,8 @@ int write_to_mem(const pid_t pid, const char* to_write, const int n,
 	  }
      }
 
+     // ...and overwrite it
+     
      printf("Writing...\n");
 
      if(!fwrite(to_write, 1, n, mem))
@@ -169,6 +185,8 @@ int set_and_save_regs(const pid_t pid, const user_regs_struct* curr_reg,
 		      unsigned long long values[], const int size)
 {
      printf("Saving registers...\n");
+
+     // Setting the values and remembering the original ones
      
      unsigned long long tmp;
      for(int i = 0; i < size; i++)
@@ -178,6 +196,7 @@ int set_and_save_regs(const pid_t pid, const user_regs_struct* curr_reg,
 	  values[i] = tmp;
      }
 
+     // Actually setting the registers 
      printf("Setting registers...\n");
      
      if(ptrace(PTRACE_SETREGS, pid, NULL, curr_reg) < 0)
@@ -193,6 +212,7 @@ Exit:
 
 int get_path_libc(const pid_t pid, char name[], unsigned long long* offset)
 {
+     // Read maps to find where the libc is as well as its offset
      char cat_s[35];
      sprintf(cat_s, "cat /proc/%d/maps | grep libc", pid);
 
@@ -209,7 +229,8 @@ int get_path_libc(const pid_t pid, char name[], unsigned long long* offset)
 	  };
 
 	  printf("%s\n", name);
-	  
+
+	  // If it's executable, it's the right one
 	  if(!strcmp(type, "r-xp"))
 	       break;
      }
@@ -222,6 +243,7 @@ Exit:
 
 int get_libc_addr(const pid_t pid, const char* fs[], const int n, unsigned long long addr[])
 {
+     // Wrapper for getting the libc and getting the addresses of functions inside it
      char path[1000];
      unsigned long long offset;
 
@@ -286,14 +308,14 @@ int main (int argc, char** argv)
      if(get_addr("tracee", 7, fs, 1, addr) < 0)
 	  goto Exit;
 
-     if(get_libc_addr(pid, fs + 1, 2, addr) < 0)
+     if(get_libc_addr(pid, fs + 1, 2, addr + 1) < 0)
 	  goto Exit;
      
-     unsigned long long addr_memalign = addr[0], addr_mprotect = addr[1], addr_foo = addr[2];
+     unsigned long long addr_memalign = addr[1], addr_mprotect = addr[2], addr_foo = addr[0];
      printf("%llx %llx\n", addr_memalign, addr_mprotect);
      
      // Write the code in the tracee
-     
+
      char foo_code[7];
      char call_trap[7] = {0xcc, 0xff, 0xd0, 0xcc , 0xff, 0xd0, 0xcc};
 
@@ -318,12 +340,12 @@ int main (int argc, char** argv)
 
      rem_regs = regs;
 
-     // Change the goo code to call bar with parameter
+     // Updating registers to call posix_memalign correctly
 
      unsigned long long* regs_addr[5] = {&regs.rax, &regs.rdi, &regs.rsi, &regs.rdx, &regs.rsp};
      unsigned long long values[5] = {addr_memalign, regs.rsp,
 				     getpagesize(), code_size, regs.rsp - sizeof(void*)};
-     
+
      printf("Writing call to posix_memalign...\n");
      
      if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
@@ -345,6 +367,7 @@ int main (int argc, char** argv)
 	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
 
+     // Checking the return value of posix_memalign
      printf("%llx \n", tmp_regs.rax);
      
      if(tmp_regs.rax < 0)
@@ -356,7 +379,8 @@ int main (int argc, char** argv)
 	  else
 	       printf("Not enough memory !\n");
      }
-     
+
+     // Changing registers to correctly call mprotect
      unsigned long long tmp_values[4] = {addr_mprotect, (unsigned long long)
 					 regs.rdi, code_size,
 					 PROT_EXEC | PROT_READ};
@@ -380,6 +404,7 @@ int main (int argc, char** argv)
 	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
 
+     // Checking mprotect return value
      printf("%llx \n", tmp_regs.rax);
      
      if(tmp_regs.rax < 0)
@@ -389,9 +414,7 @@ int main (int argc, char** argv)
      
      printf("Restoring registers...\n");
 
-     /* if(set_and_save_regs(pid, &regs, regs_addr, values, 5) < 0)
-	goto Exit; */
-
+     // Restoring registers to their initial values
      if(ptrace(PTRACE_SETREGS, pid, NULL, &rem_regs) < 0)
      {
 	  ERROR_ERRNO("Could not restore registers ! %s\n")
