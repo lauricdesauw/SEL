@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 
 #define ERROR_ERRNO(msg) { fprintf(stderr, msg, strerror(errno)); goto Exit; }
@@ -12,15 +13,23 @@
 
 typedef struct user_regs_struct user_regs_struct;
 
-pid_t trace(const char* tracee)
+pid_t trace(const char* tracee, const int n) // Function to attach our processus to another one with the name tracee. n is the size of that name.
 {
-     // Getting the pid of the tracee process
+     char* pgrep_s = malloc((n+6) * sizeof(char));
 
+     if(pgrep_s == NULL)
+	  goto Exit;
+     
+     strcpy(pgrep_s, "pgrep ");
+     strncat(pgrep_s, tracee, n);
+     
      printf("Looking for the pid of the tracee program\n");
 
      pid_t pid;
+
+     // Getting the pid of the tracee process
      
-     FILE* pgrep = popen("pgrep", "r");
+     FILE* pgrep = popen(pgrep_s, "r");
 
      if(fscanf(pgrep, "%d", &pid) == EOF)
      {
@@ -40,47 +49,71 @@ pid_t trace(const char* tracee)
 	  ERROR_ERRNO("Could not trace PID ! %s\n");
      }
 
-
      if(waitpid(pid, NULL, 0) < 0)
      {
 	  ERROR("Error while waiting for PID\n");
      }
 
      printf("Attached\n");
+
+     return pid;
+     
+Exit:
+     free(pgrep_s);
+
+     return -1;
 }
 
-int main (int argc, char** argv)
+int get_addr(const char* path, const int p, const char* fs[], const int n, int addr[]) // Search the n function of fs in the path and if there is put the corresponding addresses in addr. p is the size of the path.
 {
+     char* nm_s = malloc((n+3) * sizeof(char));
+
+     strcpy(nm_s, "nm ");
+     strncat(nm_s, path, p);
      
-     // Looking for foo in the tracee binary
-
-     printf("Looking for foo's addr\n");
-
-     FILE* nm = popen("nm tracee", "r");
-     int addr;
-     int addr_foo = 0;
-     int addr_goo = 0;
+     FILE* nm = popen(nm_s, "r");
      char type;
      char name[1000];
+     int i, addr_tmp, found = 0;
 
+     if(nm == NULL)
+     {
+	  ERROR_ERRNO("Could not nm ! %s\n")
+     }
+     
      while(1) 
      {
 	  while(fgetc(nm) != '0') ;
-	  fscanf(nm,"%x %c %s",&addr,&type ,name);
+	  if(fscanf(nm,"%x %c %s", &addr_tmp, &type, name) == EOF)
+	  {
+	       ERROR_ERRNO("Error while reading nm output ! %s\n")
+	  }
 
-	  if(!strcmp(name, "foo"))
-	       addr_foo = addr;
-
-	  if(!strcmp(name, "goo"))
-	       addr_goo = addr;
-
-	  if(addr_foo && addr_goo) 
+	  for(i = 0; i < n; ++i)
+	  {
+	       if(!strcmp(name, fs[i]))
+	       {
+		    addr[i] = addr_tmp;
+		    ++found;
+		    break;
+	       }
+	  }
+	  
+	  if(found == n)
 	       break;
      }
+     
      pclose(nm);
-     printf("foo addr is : %x\n", addr_foo);
-     printf("goo addr is : %x\n", addr_goo);
 
+     return 0;
+     
+Exit:
+     return -1;
+}
+
+int write_to_mem(const pid_t pid, const char* to_write, const int n,
+		 const unsigned long long addr, char* save_buffer) // Write the buffer to_write in the mem of the process and save the mem in save_buffer 
+{
      char path[25] = {0};
      sprintf(path, "/proc/%d/mem", pid); 
 
@@ -90,21 +123,76 @@ int main (int argc, char** argv)
      {
 	  ERROR_ERRNO("Could not open mem %s\n");
      }
-     int trap = 0xcc;
-     unsigned long long int goo_code;
-     // Save goo code 
-     fseek(mem,addr_goo, SEEK_SET);
-     fread(&goo_code, 4, 1, mem); 
-     
-     // Trap goo 
-     fseek(mem,addr_goo, SEEK_SET);
-     fwrite(&trap, 1, 1, mem);
-     printf("goo is trapped\n");
+
+     printf("Seeking...\n");
+
+     if(fseek(mem, addr, SEEK_SET) < 0)
+     {
+	  ERROR_ERRNO("Could not fseek address ! %s\n");
+     }
+
+     if(save_buffer != NULL)
+     {
+	  printf("Saving...\n");
+	  if(!fread(save_buffer, 1, n, mem))
+	  {
+	       ERROR_ERRNO("Error while reading memory ! %s\n");
+	  }
+
+	  if(fseek(mem, addr, SEEK_SET) < 0)
+	  {
+	       ERROR_ERRNO("Could not fseek address ! %s\n");
+	  }
+     }
+
+     printf("Writing...\n");
+
+     if(!fwrite(to_write, 1, n, mem))
+     {
+	  ERROR_ERRNO("Error while writing in memory ! %s\n");
+     }
+
+     printf("Code succesfully modified\n");
      fclose(mem);
+
+     return 0;
+     
+Exit:
+     fclose(mem);
+     
+     return -1;
+}
+
+int main (int argc, char** argv)
+{
+     // Getting the pid of the tracee process
+
+     pid_t pid = trace("tracee", 7);
+
+     if(pid < 0)
+	  goto Exit;
+     
+     // Looking for goo and bar in the tracee binary
+
+     const char* fs[2] = {"goo", "bar"};
+     int addr[2];
+     
+     if(get_addr("tracee", 7, fs, 2, addr) < 0)
+	  goto Exit;
+
+     unsigned long long addr_goo = addr[0], addr_bar = addr[1];
+     
+     printf("Looking for bar's addr\n");
+
+     char goo_code[4];
+     char call_trap[] = {0xcc, 0xff, 0xd0, 0xcc};
+
+     if(write_to_mem(pid, call_trap, 4, addr_goo, goo_code) < 0)
+	  goto Exit;
 
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
-     // getting the value in the register 
+     // getting the values in the registers
 
      if(waitpid(pid, NULL, 0) < 0)
      {
@@ -113,27 +201,32 @@ int main (int argc, char** argv)
      
      user_regs_struct regs;	
 
-     ptrace(PTRACE_GETREGS, pid, NULL, &regs);
-
-     // Change the goo code to call foo with parameter
-     
-     unsigned long long rax = regs.rax, rdi = regs.rdi;
-     regs.rax = addr_foo;
-     regs.rdi = 5;
-
-     char call_trap[] = {0xff, 0xd0, 0xcc};
-
-     mem = fopen(path, "r+");
-
-     if(mem == NULL)
+     if(ptrace(PTRACE_GETREGS, pid, NULL, &regs) < 0)
      {
-	  ERROR_ERRNO("Could not open mem %s\n");
+	  ERROR_ERRNO("Error while getting registers ! %s\n")
      }
-     fseek(mem, addr_goo + 1, SEEK_SET);
-     fwrite(call_trap, 1, 3, mem);
-     fclose(mem);
+    
+     // Change the goo code to call bar with parameter
+
+     printf("Saving registers...\n");
+     unsigned long long rax = regs.rax, rdi = regs.rdi, rsp = regs.rsp, rip = regs.rip;
+     regs.rax = addr_bar;
+     regs.rsp -= 1; // We are increasing the stack pointer in order to make an allocation in the stack 
+     regs.rdi = regs.rsp + 1; // The argument we give to tghe function is a pointer on the space just allocated in the stack
+
+     printf("Writing value...");
+     char value = 7;
+
+     if(write_to_mem(pid, &value, 1, regs.rdi, NULL) < 0) // We are writting the value in the stack, at the end of the previous pointer
+       goto Exit;                                         // We have took the value 7 to see if our code work and do not print something randomly in the memory
+
+
+     printf("Setting registers...\n");
+     if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
+     {
+	  ERROR_ERRNO("Could not modify registers ! %s\n");
+     }
      
-     ptrace(PTRACE_SETREGS, pid, NULL, &regs);
      ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 
      if(waitpid(pid, NULL, 0) < 0)
@@ -142,26 +235,27 @@ int main (int argc, char** argv)
      }
      
      // Restore the goo code and register value
+     printf("Restoring registers...\n");
      regs.rax = rax;
      regs.rdi = rdi;
-     regs.rip = addr_goo;
-     ptrace(PTRACE_SETREGS, pid,NULL , &regs);
-     printf("Register are restored\n");
+     regs.rsp = rsp;
+     regs.rip = rip;
 
-     mem = fopen(path, "r+");
-     if(mem == NULL)
+     if(ptrace(PTRACE_SETREGS, pid, NULL, &regs) < 0)
      {
-	  ERROR_ERRNO("Could not open mem %s\n");
+	  ERROR_ERRNO("Could not restore registers ! %s\n");
      }
-     fseek(mem,addr_goo,1);
-     fwrite(&goo_code, 4, 1, mem);
+     printf("Registers are restored\n");
+
+     printf("Restoring code...\n");
+     
+     if(write_to_mem(pid, goo_code, 4, addr_goo, NULL) < 0)
+	  goto Exit;
+     
      printf("goo is restored\n");
-     fclose(mem);
 
-
-     ptrace(PTRACE_CONT, pid, NULL, NULL) ;
-     ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
-
+     ptrace(PTRACE_CONT, pid, NULL, NULL);
+     ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
      return 0;
 
