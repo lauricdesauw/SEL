@@ -70,7 +70,7 @@ int get_addr(const char* path, const int p, const char* fs[],
 	     const int n, unsigned long long addr[])
 {
      char* nm_s = malloc((p+3) * sizeof(char));
-
+     printf("%s\n", path);
      strcpy(nm_s, "nm ");
      strncat(nm_s, path, p);
 
@@ -244,23 +244,29 @@ Exit:
 int get_libc_addr(const pid_t pid, const char* fs[], const int n, unsigned long long addr[])
 {
      // Wrapper for getting the libc and getting the addresses of functions inside it
-     char path[1000];
+     char path[1000] = {0};
      unsigned long long offset;
 
-     if(get_path_libc(pid, path, &offset) < 0)
+     path[0] = '-', path[1] = 'D', path[2] = ' ';
+     
+     if(get_path_libc(pid, path + 3, &offset) < 0)
      {
 	  ERROR("Could not find libc path !\n")
      }
 
      printf("%s %lu\n", path, strlen(path));
      
-     if(get_addr(path, strlen(path), fs, n, addr) < 0)
+     if(get_addr(path, strlen(path) + 1, fs, n, addr) < 0)
      {
 	  ERROR("Could not find functions in libc !\n")
      }
 
+     printf("Offset : %llx \n", offset);
      for(int i = 0; i < n; ++i)
+     {
+	  printf("Addr : %llx\n", addr[i]);
 	  addr[i] += offset;
+     }
 
      return 0;
      
@@ -380,6 +386,8 @@ int main (int argc, char** argv)
 	       printf("Not enough memory !\n");
      }
 
+     print_maps(pid);
+     
      // Changing registers to correctly call mprotect
      unsigned long long tmp_values[4] = {addr_mprotect, (unsigned long long)
 					 regs.rdi, code_size,
