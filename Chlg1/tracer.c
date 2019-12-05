@@ -16,10 +16,14 @@ int main (int argc, char** argv)
 	printf("Looking for the pid of the tracee program\n");
 
 	pid_t pid;
-	FILE* pgrep = popen("pgrep tracee", "r");
+	FILE* pgrep = popen("pgrep tracee", "r"); 
 
-	if(fscanf(pgrep, "%d", &pid) == EOF)
-	{
+	// We are looking at the output of the previous pgrep
+	// If the pgrep suceed we should have the pid in the standard input
+	// Else the pgrep or the fscanf failed
+	
+	if(fscanf(pgrep, "%d", &pid) == EOF)  
+ 	{
 		ERROR_ERRNO("Unable to get PID ! %s\n");
 	}
 
@@ -36,6 +40,8 @@ int main (int argc, char** argv)
 		ERROR_ERRNO("Could not trace PID ! %s\n");
 	}
 
+	// We have asked to be attached to the tracee, we have to wait for him to respond
+	
 	if(waitpid(pid, NULL, 0) < 0)
 	{
 		ERROR("Error while waiting for PID\n");
@@ -52,6 +58,9 @@ int main (int argc, char** argv)
 	char type;
 	char name[1000];
 
+	// The binary file have the format addr type name and sometimes the addr is missing
+	// the  "while(fgetc(nm) != '0') ;" allow us to skip those lines
+	
 	while(1) 
 	{
 		while(fgetc(nm) != '0') ;
@@ -73,10 +82,13 @@ int main (int argc, char** argv)
 		ERROR_ERRNO("Could not open mem %s\n");
 	}
 	int trap = 0xcc;
-	fseek(mem,addr,1);
-	fwrite(&trap, 1, 1, mem);
+	fseek(mem,addr,1); // We set our head at foo's addr to write the trap in it code
+	fwrite(&trap, 1, 1, mem); 
 	printf("foo is trapped\n");
 	fclose(mem);
+
+	// The CONT is there to allow the tracee to continue his excecution
+	
 	ptrace(PTRACE_CONT, pid, NULL, NULL) ;
 	ptrace(PTRACE_DETACH, pid,NULL, NULL) ;
 	

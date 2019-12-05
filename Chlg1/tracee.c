@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-void foo()
+void foo() // the function we want to trap
 
 {
 	static int i; 
